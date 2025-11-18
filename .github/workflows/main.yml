@@ -1,0 +1,57 @@
+name: PHP CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    
+    # Menyiapkan layanan MySQL untuk pengujian
+    services:
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: rootpassword
+          MYSQL_DATABASE: test_login_db
+          MYSQL_USER: testuser
+          MYSQL_PASSWORD: testpassword
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=10
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.1' # Pilih versi PHP yang sesuai
+        extensions: mysqli, pdo_mysql
+        coverage: none 
+
+    - name: Install Dependencies (Composer)
+      # Asumsikan file composer.json ada untuk instalasi PHPUnit
+      run: composer install --prefer-dist --no-progress --no-suggest
+      
+    - name: Wait for MySQL to be ready
+      # Tunggu hingga database siap
+      run: |
+        echo "Waiting for MySQL..."
+        for i in {1..10}; do
+          if nc -z 127.0.0.1 3306; then
+            echo "MySQL is up!"
+            break
+          fi
+          echo "Still waiting..."
+          sleep 5
+        done
+        
+    - name: Run PHPUnit Tests
+      # Jalankan tes menggunakan PHPUnit
+      run: ./vendor/bin/phpunit tests/LoginTest.php
